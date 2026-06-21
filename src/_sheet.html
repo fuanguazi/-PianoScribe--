@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { margin: 0; background: white; overflow: auto; }
+#output { padding: 20px; }
+.cursor-line { position: absolute; left: 0; width: 2px; background: #E84026; top: 0; bottom: 0; pointer-events: none; z-index: 100; display: none; }
+</style>
+</head>
+<body>
+<div id="output"></div>
+<div id="cursor" class="cursor-line"></div>
+<script src="vexflow.js"></script>
+<script>
+const VF = VexFlow;
+let factory = null;
+let measurePositions = [];
+
+function renderSheet(notesJson) {
+    const notes = JSON.parse(notesJson);
+    const container = document.getElementById('output');
+    container.innerHTML = '';
+
+    if (!notes || notes.length === 0) return;
+
+    const bpm = notes[0].bpm || 120;
+    const beatDur = 60.0 / bpm;
+
+    // Group notes into measures (4 beats per measure)
+    const measures = [];
+    for (const n of notes) {
+        const startBeat = n.start / beatDur;
+        const measureIdx = Math.floor(startBeat / 4);
+        while (measures.length <= measureIdx) measures.push([]);
+        measures[measureIdx].push(n);
+    }
+
+    const totalMeasures = Math.min(measures.length, 300);
+    const staveWidth = 200;
+    const measuresPerLine = 5;  // 5 measures per line
+    const lineSpacing = 220;    // vertical spacing between systems
+    const trebleY = 20;
+    const bassY = 120;
+    const lines = Math.ceil(totalMeasures / measuresPerLine);
+    const totalWidth = Math.max(800, measuresPerLine * staveWidth + 60);
+    const totalHeight = lines * lineSpacing + 100;
+
+    factory = new VF.Factory({
+        renderer: { elementId: 'output', width: totalWidth, height: totalHeight },
+    });
+    const ctx = factory.getContext();
+    measurePositions = [];
+
+    function midiToVfKey(midi) {
+        const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        const oct = Math.floor(midi / 12) - 1;
+        const nm = names[midi % 12];
+        return nm + '/' + oct;
+    }
+
+    function classifyDur(durBeats) {
+        if (durBeats >= 3.5) return '1';
+        if (durBeats >= 2.5) return 'd2';
+        if (durBeats >= 1.75) return '2';
+        if (durBeats >= 1.25) return 'd4';
+        if (durBeats >= 0.75) return '4';
+        if (durBeats >= 0.55) return 'd8';
+        if (durBeats >= 0.35) return '8';
+        if (durBeats >= 0.2) return '16';
+        return '16';
+    }
+
+    function makeNote(pitch, durCode, clef) {
+        const isDot = durCode.startsWith('d');
+        const dur = isDot ? durCode.slice(1) : durCode;
+        const key = midiToVfKey(pitch);
+        const staveNote = factory.StaveNote({ keys: [key], duration: dur, clef: clef });
+        if (isDot) staveNote.addDotToAll();
+        const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        if (names[pitch % 12].includes('#')) {
+            staveNote.addModifier(new VF.Accidental('#'));
+        }
+        return staveNote;
+    }
+
+    let mIdx = 0;
+    for (let line = 0; line < lines; line++) {
+        const baseY = line * lineSpacing;
+        const lineMeasureCount = Math.min(measuresPerLine, totalMeasures - mIdx);
+
+        for (let i = 0; i < lineMeasureCount; i++) {
+            const m = mIdx;
+            const mNotes = measures[m] || [];
+            const treble = mNotes.filter(n => n.pitch >= 60);
+            const bass = mNotes.filter(n => n.pitch < 60);
+            const x = i * staveWidth + 30;
+            const measureStartX = x;
+
+            // Treble stave
+            const tStave = factory.Stave({ x, y: baseY + trebleY, width: staveWidth - 10 });
+            if (m === 0) tStave.addClef('treble').addTimeSignature('4/4');
+            else if (i === 0) tStave.addClef('treble');
+            tStave.setContext(ctx).draw();
+
+            // Bass stave
+            const bStave = factory.Stave({ x, y: baseY + bassY, width: staveWidth - 10 });
+            if (m === 0) bStave.addClef('bass').addTimeSignature('4/4');
+            else if (i === 0) bStave.addClef('bass');
+            bStave.setContext(ctx).draw();
+
+            // Brace connecting treble and bass
+            if (i === 0 || m === 0) {
+                ctx.save();
+                ctx.setFont('Bravura', 50);
+                ctx.fillText('\uE000', x - 22, baseY + trebleY + 30);
+                ctx.restore();
+            }
+
+            // Treble voice
+            if (treble.length > 0) {
+                const tNotes = treble.map(n => makeNote(n.pitch, classifyDur(n.dur / beatDur), 'treble'));
+                const tVoice = factory.Voice({ time: '4/4' }).setMode(VF.Voice.Mode.SOFT);
+                tVoice.addTickables(tNotes);
+                new VF.Formatter().joinVoices([tVoice]).format([tVoice], staveWidth - 40);
+                tVoice.draw(ctx, tStave);
+            }
+
+            // Bass voice
+            if (bass.length > 0) {
+                const bNotes = bass.map(n => makeNote(n.pitch, classifyDur(n.dur / beatDur), 'bass'));
+                const bVoice = factory.Voice({ time: '4/4' }).setMode(VF.Voice.Mode.SOFT);
+                bVoice.addTickables(bNotes);
+                new VF.Formatter().joinVoices([bVoice]).format([bVoice], staveWidth - 40);
+                bVoice.draw(ctx, bStave);
+            }
+
+            measurePositions.push({ x: measureStartX, width: staveWidth, measure: m, line: line });
+            mIdx++;
+        }
+    }
+}
+
+function setCursor(x) {
+    const cursor = document.getElementById('cursor');
+    cursor.style.left = x + 'px';
+    cursor.style.display = 'block';
+}
+
+function hideCursor() {
+    const cursor = document.getElementById('cursor');
+    cursor.style.display = 'none';
+}
+</script>
+</body>
+</html>

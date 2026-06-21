@@ -1,0 +1,9 @@
+torch>=2.0
+torchaudio>=2.0
+numpy
+pretty_midi
+librosa
+soundfile
+piano_transcription_inference
+onnx
+onnxruntime

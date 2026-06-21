@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PianoScribe - 专业AI钢琴乐谱生成器</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;600;700;900&display=swap');
+
+  :root {
+    --bg-primary: #060a1a;
+    --bg-secondary: #0c1230;
+    --bg-card: rgba(15, 20, 55, 0.7);
+    --accent-blue: #4a7cff;
+    --accent-purple: #8b5cf6;
+    --accent-cyan: #06d6a0;
+    --accent-pink: #f472b6;
+    --text-primary: #f0f2ff;
+    --text-secondary: #8b92b8;
+    --gradient-main: linear-gradient(135deg, #4a7cff 0%, #8b5cf6 50%, #f472b6 100%);
+    --gradient-dark: linear-gradient(135deg, #0c1230 0%, #1a1040 100%);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ===== Animated Background ===== */
+  .bg-orbs {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none; overflow: hidden;
+  }
+  .bg-orbs .orb {
+    position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.15;
+    animation: orbFloat 20s ease-in-out infinite;
+  }
+  .bg-orbs .orb:nth-child(1) {
+    width: 600px; height: 600px; background: #4a7cff;
+    top: -200px; left: -100px; animation-delay: 0s;
+  }
+  .bg-orbs .orb:nth-child(2) {
+    width: 500px; height: 500px; background: #8b5cf6;
+    top: 40%; right: -150px; animation-delay: -7s;
+  }
+  .bg-orbs .orb:nth-child(3) {
+    width: 400px; height: 400px; background: #f472b6;
+    bottom: -100px; left: 30%; animation-delay: -14s;
+  }
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -40px) scale(1.05); }
+    66% { transform: translate(-20px, 30px) scale(0.95); }
+  }
+
+  /* ===== Navigation ===== */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 16px 40px;
+    background: rgba(6, 10, 26, 0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(74, 124, 255, 0.1);
+    display: flex; align-items: center; justify-content: space-between;
+    transition: all 0.3s ease;
+  }
+  nav.scrolled { padding: 10px 40px; background: rgba(6, 10, 26, 0.95); }
+  .nav-brand {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 22px; font-weight: 800; letter-spacing: 1px;
+    background: var(--gradient-main); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .nav-brand .piano-icon {
+    width: 32px; height: 32px;
+    background: var(--gradient-main); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; -webkit-text-fill-color: white;
+  }
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a {
+    color: var(--text-secondary); text-decoration: none;
+    font-size: 14px; font-weight: 500; transition: color 0.3s;
+    position: relative;
+  }
+  .nav-links a:hover { color: var(--text-primary); }
+  .nav-links a::after {
+    content: ''; position: absolute; bottom: -4px; left: 0;
+    width: 0; height: 2px; background: var(--gradient-main);
+    transition: width 0.3s;
+  }
+  .nav-links a:hover::after { width: 100%; }
+
+  /* ===== Hero Section ===== */
+  .hero {
+    position: relative; z-index: 1;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 120px 40px 80px;
+  }
+  .hero-content { text-align: center; max-width: 900px; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 20px; border-radius: 50px;
+    background: rgba(74, 124, 255, 0.1);
+    border: 1px solid rgba(74, 124, 255, 0.3);
+    font-size: 13px; font-weight: 500; color: var(--accent-blue);
+    margin-bottom: 32px;
+    animation: fadeInUp 0.8s ease;
+  }
+  .hero-badge .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent-cyan);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(48px, 8vw, 96px);
+    font-weight: 900; line-height: 1.05;
+    margin-bottom: 24px;
+    animation: fadeInUp 0.8s ease 0.1s both;
+  }
+  .hero h1 .gradient-text {
+    background: var(--gradient-main); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .hero .subtitle {
+    font-size: clamp(18px, 2.5vw, 24px);
+    color: var(--text-secondary); font-weight: 300;
+    margin-bottom: 48px; max-width: 680px; margin-left: auto; margin-right: auto;
+    animation: fadeInUp 0.8s ease 0.2s both;
+  }
+  .hero-actions {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    animation: fadeInUp 0.8s ease 0.3s both;
+  }
+  .btn {
+    padding: 14px 32px; border-radius: 12px; font-size: 15px;
+    font-weight: 600; cursor: pointer; border: none;
+    transition: all 0.3s ease; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-primary {
+    background: var(--gradient-main); color: white;
+    box-shadow: 0 4px 20px rgba(74, 124, 255, 0.3);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(74, 124, 255, 0.5);
+  }
+  .btn-secondary {
+    background: rgba(255,255,255,0.05); color: var(--text-primary);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.3);
+    transform: translateY(-2px);
+  }
+
+  /* ===== Piano Keyboard Decoration ===== */
+  .piano-deco {
+    position: relative; z-index: 1;
+    display: flex; justify-content: center;
+    margin-top: -40px; margin-bottom: 60px;
+    animation: fadeInUp 1s ease 0.5s both;
+  }
+  .piano-keys {
+    display: flex; position: relative; height: 80px;
+    border-radius: 0 0 12px 12px; overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .white-key {
+    width: 40px; height: 80px;
+    background: linear-gradient(180deg, #f8f8f8 0%, #e8e8e8 100%);
+    border: 1px solid #ccc; border-top: none;
+    border-radius: 0 0 4px 4px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .white-key:hover {
+    background: linear-gradient(180deg, #4a7cff 0%, #3a5fd4 100%);
+    border-color: #4a7cff;
+  }
+  .white-key.pressed {
+    background: linear-gradient(180deg, #8b5cf6 0%, #6d3fc7 100%);
+    transform: scaleY(0.97); transform-origin: top;
+  }
+  .black-key-wrapper {
+    position: absolute; top: 0; z-index: 2;
+  }
+  .black-key {
+    width: 26px; height: 50px;
+    background: linear-gradient(180deg, #333 0%, #111 100%);
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 3px 5px rgba(0,0,0,0.4);
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .black-key:hover {
+    background: linear-gradient(180deg, #4a7cff 0%, #3a5fd4 100%);
+  }
+  .black-key.pressed {
+    background: linear-gradient(180deg, #8b5cf6 0%, #6d3fc7 100%);
+    height: 47px;
+  }
+
+  /* ===== Floating Notes ===== */
+  .floating-notes {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: hidden; z-index: 0;
+  }
+  .note {
+    position: absolute; font-size: 28px; opacity: 0.08;
+    animation: floatNote 15s linear infinite;
+    color: var(--accent-blue);
+  }
+  .note:nth-child(2n) { color: var(--accent-purple); animation-duration: 18s; }
+  .note:nth-child(3n) { color: var(--accent-pink); animation-duration: 12s; }
+  @keyframes floatNote {
+    0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+    10% { opacity: 0.08; }
+    90% { opacity: 0.08; }
+    100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+  }
+
+  /* ===== Section Styles ===== */
+  section {
+    position: relative; z-index: 1;
+    padding: 100px 40px;
+  }
+  .section-header {
+    text-align: center; margin-bottom: 64px;
+  }
+  .section-label {
+    display: inline-block; font-size: 13px; font-weight: 600;
+    letter-spacing: 3px;
+    background: var(--gradient-main); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-family: 'Noto Sans SC', 'Playfair Display', serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800; margin-bottom: 16px;
+  }
+  .section-desc {
+    font-size: 17px; color: var(--text-secondary);
+    max-width: 600px; margin: 0 auto;
+  }
+
+  /* ===== Features Grid ===== */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px; max-width: 1200px; margin: 0 auto;
+  }
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(74, 124, 255, 0.1);
+    border-radius: 20px; padding: 36px;
+    transition: all 0.4s ease;
+    position: relative; overflow: hidden;
+  }
+  .feature-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: var(--gradient-main);
+    transform: scaleX(0); transition: transform 0.4s ease;
+    transform-origin: left;
+  }
+  .feature-card:hover::before { transform: scaleX(1); }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(74, 124, 255, 0.3);
+    box-shadow: 0 12px 40px rgba(74, 124, 255, 0.1);
+  }
+  .feature-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; margin-bottom: 20px;
+  }
+  .feature-icon.blue { background: rgba(74, 124, 255, 0.15); }
+  .feature-icon.purple { background: rgba(139, 92, 246, 0.15); }
+  .feature-icon.cyan { background: rgba(6, 214, 160, 0.15); }
+  .feature-icon.pink { background: rgba(244, 114, 182, 0.15); }
+  .feature-card h3 {
+    font-size: 20px; font-weight: 700; margin-bottom: 10px;
+  }
+  .feature-card p {
+    font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+  }
+
+  /* ===== Workflow Section ===== */
+  .workflow {
+    max-width: 1000px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .workflow-step {
+    display: flex; align-items: flex-start; gap: 32px;
+    padding: 32px 0; position: relative;
+  }
+  .workflow-step:not(:last-child)::after {
+    content: ''; position: absolute; left: 31px; top: 80px;
+    width: 2px; height: calc(100% - 60px);
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-purple));
+    opacity: 0.3;
+  }
+  .step-num {
+    width: 64px; height: 64px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 800; flex-shrink: 0;
+    background: var(--gradient-main); color: white;
+    box-shadow: 0 4px 20px rgba(74, 124, 255, 0.3);
+  }
+  .step-content h3 {
+    font-size: 22px; font-weight: 700; margin-bottom: 8px;
+  }
+  .step-content p {
+    font-size: 15px; color: var(--text-secondary); line-height: 1.7;
+  }
+  .step-tags { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .step-tag {
+    padding: 4px 12px; border-radius: 6px; font-size: 12px;
+    font-weight: 500; background: rgba(74, 124, 255, 0.1);
+    color: var(--accent-blue); border: 1px solid rgba(74, 124, 255, 0.2);
+  }
+
+  /* ===== Tech Stack ===== */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px; max-width: 1000px; margin: 0 auto;
+  }
+  .tech-item {
+    background: var(--bg-card);
+    border: 1px solid rgba(74, 124, 255, 0.08);
+    border-radius: 16px; padding: 28px;
+    text-align: center; transition: all 0.3s ease;
+  }
+  .tech-item:hover {
+    border-color: rgba(74, 124, 255, 0.3);
+    transform: translateY(-3px);
+  }
+  .tech-item .tech-icon {
+    font-size: 36px; margin-bottom: 12px;
+  }
+  .tech-item h4 {
+    font-size: 16px; font-weight: 600; margin-bottom: 4px;
+  }
+  .tech-item p {
+    font-size: 12px; color: var(--text-secondary);
+  }
+
+  /* ===== Stats ===== */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px; max-width: 900px; margin: 0 auto;
+  }
+  .stat-card {
+    text-align: center; padding: 32px;
+    background: var(--bg-card);
+    border: 1px solid rgba(74, 124, 255, 0.1);
+    border-radius: 16px;
+  }
+  .stat-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px; font-weight: 800;
+    background: var(--gradient-main); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .stat-label {
+    font-size: 14px; color: var(--text-secondary);
+    margin-top: 8px;
+  }
+
+  /* ===== Showcase / Screenshot ===== */
+  .showcase {
+    max-width: 1100px; margin: 0 auto;
+  }
+  .showcase-frame {
+    background: var(--bg-card);
+    border: 1px solid rgba(74, 124, 255, 0.15);
+    border-radius: 20px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .showcase-titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 20px;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .titlebar-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .titlebar-dot.red { background: #ff5f57; }
+  .titlebar-dot.yellow { background: #ffbd2e; }
+  .titlebar-dot.green { background: #28c840; }
+  .showcase-titlebar span {
+    margin-left: 12px; font-size: 13px; color: var(--text-secondary);
+  }
+  .showcase-body {
+    padding: 40px; min-height: 400px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 24px;
+  }
+  .mock-ui {
+    width: 100%; display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 20px; min-height: 360px;
+  }
+  .mock-sidebar {
+    background: rgba(0,0,0,0.2); border-radius: 12px; padding: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mock-sidebar-item {
+    padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    color: var(--text-secondary); display: flex; align-items: center; gap: 10px;
+    transition: all 0.2s;
+  }
+  .mock-sidebar-item.active {
+    background: rgba(74, 124, 255, 0.15); color: var(--accent-blue);
+  }
+  .mock-sidebar-item .icon { font-size: 16px; }
+  .mock-main {
+    background: rgba(0,0,0,0.15); border-radius: 12px; padding: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .mock-main-header {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .mock-main-header h3 { font-size: 18px; font-weight: 600; }
+  .mock-btn {
+    padding: 8px 18px; border-radius: 8px; font-size: 12px;
+    font-weight: 600; border: none; cursor: pointer;
+    background: var(--gradient-main); color: white;
+  }
+  .mock-sheet-area {
+    flex: 1; background: rgba(255,255,255,0.03);
+    border-radius: 10px; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    border: 1px dashed rgba(74, 124, 255, 0.2);
+  }
+  .mock-staff-line {
+    height: 1px; background: rgba(255,255,255,0.1);
+    position: relative;
+  }
+  .mock-staff-line:nth-child(1) .mock-note { left: 15%; top: -6px; }
+  .mock-staff-line:nth-child(2) .mock-note { left: 30%; top: -6px; }
+  .mock-staff-line:nth-child(3) .mock-note { left: 50%; top: -6px; }
+  .mock-staff-line:nth-child(4) .mock-note { left: 70%; top: -6px; }
+  .mock-staff-line:nth-child(5) .mock-note { left: 85%; top: -6px; }
+  .mock-note {
+    position: absolute; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent-blue);
+    box-shadow: 0 0 8px rgba(74, 124, 255, 0.5);
+    animation: noteGlow 2s ease-in-out infinite;
+  }
+  .mock-note:nth-child(2n) { background: var(--accent-purple); box-shadow: 0 0 8px rgba(139, 92, 246, 0.5); }
+  @keyframes noteGlow {
+    0%, 100% { opacity: 0.7; } 50% { opacity: 1; }
+  }
+  .mock-playback {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+  }
+  .play-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--gradient-main); border: none;
+    color: white; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .progress-bar {
+    flex: 1; height: 4px; background: rgba(255,255,255,0.1);
+    border-radius: 2px; position: relative; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 35%; border-radius: 2px;
+    background: var(--gradient-main);
+    animation: progressAnim 8s ease-in-out infinite;
+  }
+  @keyframes progressAnim {
+    0% { width: 0%; } 50% { width: 70%; } 100% { width: 100%; }
+  }
+  .time-label { font-size: 12px; color: var(--text-secondary); }
+
+  /* ===== CTA Section ===== */
+  .cta-section {
+    text-align: center;
+    background: linear-gradient(180deg, transparent 0%, rgba(74, 124, 255, 0.05) 100%);
+  }
+  .cta-box {
+    max-width: 700px; margin: 0 auto;
+    padding: 60px; border-radius: 24px;
+    background: var(--bg-card);
+    border: 1px solid rgba(74, 124, 255, 0.2);
+    position: relative; overflow: hidden;
+  }
+  .cta-box::before {
+    content: ''; position: absolute; top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at center, rgba(74, 124, 255, 0.08) 0%, transparent 50%);
+    animation: ctaGlow 6s ease-in-out infinite;
+  }
+  @keyframes ctaGlow {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+  .cta-box h2 {
+    font-family: 'Noto Sans SC', 'Playfair Display', serif;
+    font-size: 36px; font-weight: 800; margin-bottom: 16px;
+    position: relative;
+  }
+  .cta-box p {
+    font-size: 16px; color: var(--text-secondary); margin-bottom: 32px;
+    position: relative;
+  }
+  .cta-box .btn { position: relative; }
+
+  /* ===== Footer ===== */
+  footer {
+    position: relative; z-index: 1;
+    padding: 40px; text-align: center;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  footer p { font-size: 13px; color: var(--text-secondary); }
+  footer .heart {
+    color: var(--accent-pink);
+    animation: heartbeat 1.5s ease-in-out infinite;
+    display: inline-block;
+  }
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  /* ===== Animations ===== */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    opacity: 0; transform: translateY(40px);
+    transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal.visible {
+    opacity: 1; transform: translateY(0);
+  }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 768px) {
+    nav { padding: 12px 20px; }
+    .nav-links { display: none; }
+    section { padding: 60px 20px; }
+    .hero { padding: 100px 20px 60px; }
+    .mock-ui { grid-template-columns: 1fr; }
+    .mock-sidebar { display: none; }
+    .piano-keys { transform: scale(0.7); }
+    .workflow-step { flex-direction: column; gap: 16px; }
+    .workflow-step:not(:last-child)::after { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Animated Background Orbs -->
+<div class="bg-orbs">
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+</div>
+
+<!-- Floating Musical Notes -->
+<div class="floating-notes">
+  <div class="note" style="left:5%; animation-delay:0s;">&#9835;</div>
+  <div class="note" style="left:15%; animation-delay:-3s;">&#9834;</div>
+  <div class="note" style="left:25%; animation-delay:-6s;">&#9833;</div>
+  <div class="note" style="left:40%; animation-delay:-2s;">&#9835;</div>
+  <div class="note" style="left:55%; animation-delay:-8s;">&#9834;</div>
+  <div class="note" style="left:70%; animation-delay:-4s;">&#9833;</div>
+  <div class="note" style="left:85%; animation-delay:-10s;">&#9835;</div>
+  <div class="note" style="left:95%; animation-delay:-1s;">&#9834;</div>
+</div>
+
+<!-- Navigation -->
+<nav id="navbar">
+  <div class="nav-brand">
+    <div class="piano-icon">&#9835;</div>
+    PianoScribe
+  </div>
+  <ul class="nav-links">
+    <li><a href="#features">核心功能</a></li>
+    <li><a href="#workflow">工作流程</a></li>
+    <li><a href="#showcase">界面展示</a></li>
+    <li><a href="#tech">技术栈</a></li>
+  </ul>
+</nav>
+
+<!-- Hero Section -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      AI 驱动的音乐转录引擎
+    </div>
+    <h1>
+      <span class="gradient-text">PianoScribe</span>
+    </h1>
+    <p class="subtitle">
+      专业AI钢琴乐谱生成器 &mdash; 运用前沿深度学习技术，将任意音频转化为精美可演奏的钢琴乐谱
+    </p>
+    <div class="hero-actions">
+      <a href="#features" class="btn btn-primary">
+        &#9654; 探索功能
+      </a>
+      <a href="#showcase" class="btn btn-secondary">
+        &#128065; 查看演示
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Piano Keyboard Decoration -->
+<div class="piano-deco">
+  <div class="piano-keys" id="pianoKeys">
+    <div class="white-key" data-note="C4"></div>
+    <div class="white-key" data-note="D4"></div>
+    <div class="white-key" data-note="E4"></div>
+    <div class="white-key" data-note="F4"></div>
+    <div class="white-key" data-note="G4"></div>
+    <div class="white-key" data-note="A4"></div>
+    <div class="white-key" data-note="B4"></div>
+    <div class="white-key" data-note="C5"></div>
+    <div class="white-key" data-note="D5"></div>
+    <div class="white-key" data-note="E5"></div>
+    <div class="white-key" data-note="F5"></div>
+    <div class="white-key" data-note="G5"></div>
+    <div class="white-key" data-note="A5"></div>
+    <div class="white-key" data-note="B5"></div>
+    <!-- Black keys positioned absolutely -->
+    <div class="black-key-wrapper" style="left:27px;"><div class="black-key" data-note="C#4"></div></div>
+    <div class="black-key-wrapper" style="left:67px;"><div class="black-key" data-note="D#4"></div></div>
+    <div class="black-key-wrapper" style="left:147px;"><div class="black-key" data-note="F#4"></div></div>
+    <div class="black-key-wrapper" style="left:187px;"><div class="black-key" data-note="G#4"></div></div>
+    <div class="black-key-wrapper" style="left:227px;"><div class="black-key" data-note="A#4"></div></div>
+    <div class="black-key-wrapper" style="left:307px;"><div class="black-key" data-note="C#5"></div></div>
+    <div class="black-key-wrapper" style="left:347px;"><div class="black-key" data-note="D#5"></div></div>
+    <div class="black-key-wrapper" style="left:427px;"><div class="black-key" data-note="F#5"></div></div>
+    <div class="black-key-wrapper" style="left:467px;"><div class="black-key" data-note="G#5"></div></div>
+    <div class="black-key-wrapper" style="left:507px;"><div class="black-key" data-note="A#5"></div></div>
+  </div>
+</div>
+
+<!-- Features Section -->
+<section id="features">
+  <div class="section-header reveal">
+    <div class="section-label">核心功能</div>
+    <h2 class="section-title">钢琴转录所需的一切</h2>
+    <p class="section-desc">从音频到乐谱，PianoScribe 以业界领先的 AI 模型覆盖完整转录流程。</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon blue">&#127925;</div>
+      <h3>AI 音源分离</h3>
+      <p>基于 Mel-Band RoFormer (pymss) 自动从混合音频中提取钢琴音轨。无论是歌曲、现场演出还是管弦乐作品，都能精准分离出纯净的钢琴声部。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon purple">&#129302;</div>
+      <h3>深度学习转录</h3>
+      <p>采用 Transkun (CRNN) 与 Basic Pitch (ONNX) 双模型架构，在标准基准测试中音符 F1 达到 0.96 以上，踏板 F1 达到 0.91 以上。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon cyan">&#127932;</div>
+      <h3>专业乐谱排版</h3>
+      <p>通过 LilyPond 乐谱排版引擎生成出版级质量的乐谱。支持多声部、力度记号、演奏法标注以及标准音乐记谱法。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon pink">&#9654;&#65039;</div>
+      <h3>交互式播放</h3>
+      <p>内置 FluidR3_GM 高品质音色库 (141MB) 的 MIDI 合成器。支持原始力度与统一音量两种播放模式，播放时实时高亮当前音符。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon blue">&#128200;</div>
+      <h3>难度分析</h3>
+      <p>基于音符密度、手跨度、速度和技术模式自动评定难度等级（入门 / 进阶 / 高级 / 大师），是练习规划的好帮手。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon purple">&#128336;</div>
+      <h3>节拍与速度追踪</h3>
+      <p>精准的节拍检测与速度映射，支持可调 BPM。识别自由速度、渐快和渐慢，还原富有表现力的演奏风格。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Workflow Section -->
+<section id="workflow" style="background: linear-gradient(180deg, transparent 0%, rgba(139,92,246,0.03) 50%, transparent 100%);">
+  <div class="section-header reveal">
+    <div class="section-label">工作流程</div>
+    <h2 class="section-title">四步完成从音频到乐谱</h2>
+    <p class="section-desc">每个环节都由前沿 AI 驱动，流程无缝衔接。</p>
+  </div>
+  <div class="workflow">
+    <div class="workflow-step reveal">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>加载音频文件</h3>
+        <p>拖放任意音频文件即可开始 &mdash; 支持 MP3、WAV、FLAC、OGG、M4A 等格式。PianoScribe 自动处理后续所有步骤，支持长达数小时的文件。</p>
+        <div class="step-tags">
+          <span class="step-tag">MP3</span>
+          <span class="step-tag">WAV</span>
+          <span class="step-tag">FLAC</span>
+          <span class="step-tag">OGG</span>
+          <span class="step-tag">M4A</span>
+        </div>
+      </div>
+    </div>
+    <div class="workflow-step reveal">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>AI 音源分离</h3>
+        <p>Mel-Band RoFormer 模型从混音中分离出钢琴音轨。人声、鼓点、吉他 &mdash; 全部干净分离，确保转录模型接收到纯净的钢琴音频。</p>
+        <div class="step-tags">
+          <span class="step-tag">Mel-Band RoFormer</span>
+          <span class="step-tag">pymss</span>
+          <span class="step-tag">Spleeter</span>
+        </div>
+      </div>
+    </div>
+    <div class="workflow-step reveal">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>神经网络转录</h3>
+        <p>双模型流水线：Transkun CRNN 负责精确的起止时间检测，Basic Pitch ONNX 负责稳健的音高估计。两路结果融合，实现最高准确度。</p>
+        <div class="step-tags">
+          <span class="step-tag">Transkun CRNN</span>
+          <span class="step-tag">Basic Pitch ONNX</span>
+          <span class="step-tag">F1 &gt; 0.96</span>
+        </div>
+      </div>
+    </div>
+    <div class="workflow-step reveal">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>乐谱生成与播放</h3>
+        <p>MIDI 音符转换为 LilyPond 记谱法，排版为专业乐谱 (PDF)，并合成逼真的钢琴音色供即时播放。</p>
+        <div class="step-tags">
+          <span class="step-tag">LilyPond</span>
+          <span class="step-tag">FluidSynth</span>
+          <span class="step-tag">PDF 导出</span>
+          <span class="step-tag">MIDI 导出</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Showcase Section -->
+<section id="showcase">
+  <div class="section-header reveal">
+    <div class="section-label">界面展示</div>
+    <h2 class="section-title">简洁、专业、直观</h2>
+    <p class="section-desc">为音乐人和制作人精心打造的深色主题桌面界面。</p>
+  </div>
+  <div class="showcase reveal">
+    <div class="showcase-frame">
+      <div class="showcase-titlebar">
+        <div class="titlebar-dot red"></div>
+        <div class="titlebar-dot yellow"></div>
+        <div class="titlebar-dot green"></div>
+        <span>PianoScribe - 钢琴乐谱生成器</span>
+      </div>
+      <div class="showcase-body">
+        <div class="mock-ui">
+          <div class="mock-sidebar">
+            <div class="mock-sidebar-item active">
+              <span class="icon">&#127968;</span> 首页
+            </div>
+            <div class="mock-sidebar-item">
+              <span class="icon">&#127925;</span> 转录
+            </div>
+            <div class="mock-sidebar-item">
+              <span class="icon">&#127932;</span> 乐谱
+            </div>
+            <div class="mock-sidebar-item">
+              <span class="icon">&#9654;&#65039;</span> 播放
+            </div>
+            <div class="mock-sidebar-item">
+              <span class="icon">&#128200;</span> 难度
+            </div>
+            <div class="mock-sidebar-item">
+              <span class="icon">&#9881;&#65039;</span> 设置
+            </div>
+          </div>
+          <div class="mock-main">
+            <div class="mock-main-header">
+              <h3>月光奏鸣曲 - 乐谱</h3>
+              <button class="mock-btn">导出 PDF</button>
+            </div>
+            <div class="mock-sheet-area">
+              <div class="mock-staff-line"><div class="mock-note"></div></div>
+              <div class="mock-staff-line"><div class="mock-note"></div></div>
+              <div class="mock-staff-line"><div class="mock-note"></div></div>
+              <div class="mock-staff-line"><div class="mock-note"></div></div>
+              <div class="mock-staff-line"><div class="mock-note"></div></div>
+            </div>
+            <div class="mock-playback">
+              <button class="play-btn">&#9654;</button>
+              <div class="progress-bar"><div class="progress-fill"></div></div>
+              <span class="time-label">1:24 / 4:32</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Section -->
+<section>
+  <div class="section-header reveal">
+    <div class="section-label">性能指标</div>
+    <h2 class="section-title">为精准而生</h2>
+  </div>
+  <div class="stats-row reveal">
+    <div class="stat-card">
+      <div class="stat-number">96.7%</div>
+      <div class="stat-label">音符 F1 分数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">91.8%</div>
+      <div class="stat-label">踏板 F1 分数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">141MB</div>
+      <div class="stat-label">音色库品质</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">5+</div>
+      <div class="stat-label">音频格式支持</div>
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack Section -->
+<section id="tech" style="background: linear-gradient(180deg, transparent 0%, rgba(74,124,255,0.03) 50%, transparent 100%);">
+  <div class="section-header reveal">
+    <div class="section-label">技术架构</div>
+    <h2 class="section-title">基于顶级开源技术构建</h2>
+    <p class="section-desc">精心甄选的 AI 与音频处理技术栈，每一项都经过生产验证。</p>
+  </div>
+  <div class="tech-grid reveal">
+    <div class="tech-item">
+      <div class="tech-icon">&#128013;</div>
+      <h4>Python</h4>
+      <p>核心语言</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128306;</div>
+      <h4>PySide6 / Qt</h4>
+      <p>桌面 GUI</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#129504;</div>
+      <h4>Transkun CRNN</h4>
+      <p>音符转录</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#9889;</div>
+      <h4>Basic Pitch ONNX</h4>
+      <p>音高估计</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#127927;</div>
+      <h4>LilyPond</h4>
+      <p>乐谱排版</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128266;</div>
+      <h4>FluidSynth</h4>
+      <p>音频合成</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#127911;</div>
+      <h4>pymss</h4>
+      <p>音源分离</p>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128230;</div>
+      <h4>PyInstaller</h4>
+      <p>打包分发</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section">
+  <div class="cta-box reveal">
+    <h2>准备好开始转录了吗？</h2>
+    <p>用 AI 的力量将你喜爱的钢琴录音转化为精美乐谱，无需任何乐理基础。</p>
+    <a href="#" class="btn btn-primary" style="font-size:17px; padding:16px 40px;">
+      &#9835; 下载 PianoScribe v8
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>
+    PianoScribe 团队倾心打造 <span class="heart">&#10084;</span> &mdash; Powered by TRAE Work
+    <br>
+    <span style="font-size:12px; opacity:0.5;">PianoScribe v8.0 &copy; 2025</span>
+  </p>
+</footer>
+
+<script>
+// ===== Navbar scroll effect =====
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 50);
+});
+
+// ===== Scroll reveal =====
+const reveals = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+reveals.forEach(el => revealObserver.observe(el));
+
+// ===== Interactive Piano Keys =====
+const pianoKeys = document.getElementById('pianoKeys');
+const allKeys = pianoKeys.querySelectorAll('.white-key, .black-key');
+
+// Auto-play a melody
+const melody = ['C4','E4','G4','C5','E5','G4','E4','C5','A4','F4','D4','G4','B4','D5','G5','E5','C5'];
+let melodyIndex = 0;
+
+function playNote(noteName) {
+  const key = pianoKeys.querySelector(`[data-note="${noteName}"]`);
+  if (!key) return;
+  key.classList.add('pressed');
+  setTimeout(() => key.classList.remove('pressed'), 300);
+}
+
+function autoPlay() {
+  playNote(melody[melodyIndex]);
+  melodyIndex = (melodyIndex + 1) % melody.length;
+}
+
+let autoPlayInterval = setInterval(autoPlay, 400);
+
+// Click/hover interaction
+allKeys.forEach(key => {
+  key.addEventListener('mouseenter', () => {
+    clearInterval(autoPlayInterval);
+    key.classList.add('pressed');
+  });
+  key.addEventListener('mouseleave', () => {
+    key.classList.remove('pressed');
+    autoPlayInterval = setInterval(autoPlay, 400);
+  });
+  key.addEventListener('click', () => {
+    clearInterval(autoPlayInterval);
+    key.classList.add('pressed');
+    setTimeout(() => key.classList.remove('pressed'), 300);
+    autoPlayInterval = setInterval(autoPlay, 400);
+  });
+});
+
+// ===== Smooth scroll for nav links =====
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+</script>
+
+</body>
+</html>
