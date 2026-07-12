@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=PianoScribe
+Name[zh_CN]=PianoScribe 钢琴谱
+GenericName=Piano Transcription
+GenericName[zh_CN]=AI 钢琴谱生成
+Comment=AI-powered piano sheet music generator
+Comment[zh_CN]=AI 钢琴谱生成工具
+Exec=bash -c 'cd "/media/zk/AI/多多/PianoTraining/app" && python3 piano_app.py'
+Path=/media/zk/AI/多多/PianoTraining/app
+Icon=/media/zk/AI/多多/PianoTraining/app/pianoscribe_icon.png
+Terminal=false
+Categories=AudioVideo;Audio;Music;Education;
+Keywords=piano;midi;transcription;music;
+StartupNotify=true
+StartupWMClass=PianoScribe

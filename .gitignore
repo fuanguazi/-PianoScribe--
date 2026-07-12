@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.trae/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Generated/output files
+*.mid
+*.wav
+*.mp3
+_sheet.html
+test_score
+real_score*
+Nevermore_*.mid
+edited.mid
+
+# Large data / models (too large for GitHub)
+checkpoints/
+data/
+*.pt
+*.pth
+*.sf2
+*.zip
+*.7z
+*.tar.gz
+
+# LilyPond binaries (very large, user installs separately)
+lilypond-2.24.4/
+
+# ROSVOT model (large)
+ROSVOT/
+
+# PyInstaller build artifacts
+app/PianoScribe_Setup/
+app/installer_output/
+app/dist/
+PianoScribe_Setup.zip
+PianoScribe_Setup.spec
+pianoscibe.spec
+build/
+
+# Temp files
+*.tmp
+*.temp
+~$*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
