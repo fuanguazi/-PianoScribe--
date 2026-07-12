@@ -13,9 +13,9 @@ import sys
 import shutil
 import subprocess
 
-DIST_DIR = r'D:\PianoTraining\app\dist\PianoScribe'
-ICON_PATH = r'D:\PianoTraining\app\pianoscribe_icon.ico'
-OUTPUT_DIR = r'D:\PianoTraining\app\installer_output'
+DIST_DIR = r'D:\多多\PianoTraining\app\dist\PianoScribe'
+ICON_PATH = r'D:\多多\PianoTraining\app\pianoscribe_icon.ico'
+OUTPUT_DIR = r'D:\多多\PianoTraining\app\installer_output'
 
 INSTALLER_SCRIPT = r"""
 import os
@@ -25,7 +25,7 @@ import subprocess
 import ctypes
 
 APP_NAME = "PianoScribe"
-APP_VERSION = "8.0"
+APP_VERSION = "9.0"
 PUBLISHER = "PianoScribe Team"
 EXE_NAME = "PianoScribe.exe"
 ICON_RES = "pianoscribe_icon.ico"

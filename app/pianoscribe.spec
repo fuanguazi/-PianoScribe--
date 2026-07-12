@@ -5,7 +5,7 @@ import os
 import sys
 import importlib
 
-APP_DIR = r'D:\PianoTraining\app'
+APP_DIR = r'D:\多多\PianoTraining\app'
 
 # Collect hidden imports
 hiddenimports = [

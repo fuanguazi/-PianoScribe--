@@ -32,12 +32,17 @@ edited.mid
 # Large data / models (too large for GitHub)
 checkpoints/
 data/
+export/
+transkun_dataset/
 *.pt
 *.pth
 *.sf2
 *.zip
 *.7z
 *.tar.gz
+*.onnx
+*.pickle
+load_weights/
 
 # LilyPond binaries (very large, user installs separately)
 lilypond-2.24.4/
