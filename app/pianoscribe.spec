@@ -51,8 +51,6 @@ hiddenimports = [
 
 # Collect data files
 datas = [
-    # TimbresOfHeaven soundfont
-    (os.path.join(APP_DIR, 'TimbresOfHeaven.sf2'), '.'),
     # Application icon
     (os.path.join(APP_DIR, 'pianoscribe_icon.ico'), '.'),
     (os.path.join(APP_DIR, 'pianoscribe_icon.png'), '.'),
@@ -66,7 +64,11 @@ datas = [
 
 # Collect binary files (FluidSynth DLL)
 binaries = []
-fs_dll_dir = r'C:\tools\fluidsynth-temp\bin'
+fs_dll_dir = r'D:\tools\fluidsynth\bin'
+if not os.path.isdir(fs_dll_dir):
+    fs_dll_dir = r'C:\tools\fluidsynth\bin'
+if not os.path.isdir(fs_dll_dir):
+    fs_dll_dir = r'C:\tools\fluidsynth-temp\bin'
 if os.path.isdir(fs_dll_dir):
     for f in os.listdir(fs_dll_dir):
         if f.endswith('.dll'):
