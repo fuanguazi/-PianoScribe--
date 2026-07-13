@@ -289,6 +289,7 @@ def build_installer():
         '--icon', ICON_PATH,
         '--add-data', f'{DIST_DIR};payload',
         '--noconfirm',
+        '--clean',
         '--exclude-module', 'tensorflow',
         '--exclude-module', 'torch',
         '--exclude-module', 'keras',

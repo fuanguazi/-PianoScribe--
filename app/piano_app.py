@@ -1182,7 +1182,8 @@ class SheetMusicWidget(QGraphicsView):
         """Maintain A4 page proportions on initial resize after load."""
         super().resizeEvent(event)
         if self._auto_fit and self._svg_items:
-            self.fitInView(self._scene.itemsBoundingRect(), Qt.KeepAspectRatio)
+            first_rect = self._svg_items[0].sceneBoundingRect()
+            self.fitInView(first_rect, Qt.KeepAspectRatio)
             self._zoom = self.transform().m11()
 
     def _update_bg_style(self):
@@ -1439,6 +1440,10 @@ class SheetMusicWidget(QGraphicsView):
                         '  #(set-paper-size "a4")\n'
                         '  page-breaking = #ly:optimal-breaking\n'
                         '  ragged-last-bottom = ##f\n'
+                        '  ragged-right = ##f\n'
+                        '  indent = 0\n'
+                        '  short-indent = 0\n'
+                        '  line-width = #(- paper-width (* 24 mm))\n'
                         '  system-system-spacing = #((padding . 4) (stretchability . 6))\n'
                         '  top-margin = 15\n'
                         '  bottom-margin = 15\n'
@@ -1626,8 +1631,12 @@ class SheetMusicWidget(QGraphicsView):
             self._scene.addItem(more_text)
 
         if self._svg_items:
+            # Set explicit scene rect to avoid any clipping
+            self.setSceneRect(self._scene.itemsBoundingRect())
             self._auto_fit = True
-            self.fitInView(self._scene.itemsBoundingRect(), Qt.KeepAspectRatio)
+            # Fit the first page for readability; user can zoom out to see all
+            first_rect = self._svg_items[0].sceneBoundingRect()
+            self.fitInView(first_rect, Qt.KeepAspectRatio)
             self._zoom = self.transform().m11()
 
             # Parse first SVG page to find exact staff positions
@@ -1762,7 +1771,7 @@ class SheetMusicWidget(QGraphicsView):
 
         if self._svg_items:
             # Auto-flip to the correct page based on time
-            if self._page_count > 1:
+            if self._page_count > 0:
                 time_per_page = max(self.duration, 0.001) / self._page_count
                 target_page = min(int(self.cursor_time / time_per_page),
                                   self._page_count - 1)
@@ -1775,11 +1784,18 @@ class SheetMusicWidget(QGraphicsView):
                 visible = (ns <= self.cursor_time < ne)
                 rect.setVisible(visible)
 
-            # Auto-scroll to cursor position (horizontal scroll)
-            x_ratio = self.cursor_time / max(self.duration, 0.001)
-            page_width = self._svg_items[0].boundingRect().width() if self._svg_items else 800
-            cursor_x = x_ratio * page_width
-            self.ensureVisible(cursor_x, 0, 100, 100)
+            # Auto-scroll to cursor position within the current page
+            if self._page_count > 0 and self._svg_items:
+                time_per_page = max(self.duration, 0.001) / self._page_count
+                t = max(self._page_count - 1, 0)
+                cp = min(int(self.cursor_time / time_per_page), t)
+                page_start = cp * time_per_page
+                within_page = (self.cursor_time - page_start) / time_per_page
+                within_page = max(0, min(within_page, 1))
+                page_width = self._svg_items[cp].boundingRect().width()
+                cursor_x = within_page * page_width
+                cursor_y = cp * self._page_height
+                self.ensureVisible(cursor_x, cursor_y, page_width * 0.3, 60)
 
     def wheelEvent(self, event):
         """Zoom with Ctrl+wheel, scroll otherwise."""

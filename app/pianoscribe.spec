@@ -5,6 +5,8 @@ import os
 import sys
 import importlib
 
+sys.setrecursionlimit(5000)
+
 APP_DIR = r'D:\多多\PianoTraining\app'
 
 # Collect hidden imports
@@ -49,8 +51,8 @@ hiddenimports = [
 
 # Collect data files
 datas = [
-    # FluidR3_GM soundfont
-    (os.path.join(APP_DIR, 'FluidR3_GM.sf2'), '.'),
+    # TimbresOfHeaven soundfont
+    (os.path.join(APP_DIR, 'TimbresOfHeaven.sf2'), '.'),
     # Application icon
     (os.path.join(APP_DIR, 'pianoscribe_icon.ico'), '.'),
     (os.path.join(APP_DIR, 'pianoscribe_icon.png'), '.'),
