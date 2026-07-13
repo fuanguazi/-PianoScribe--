@@ -9770,7 +9770,7 @@ class SplashWidget(QWidget):
         # Version
         p.setFont(QFont("Segoe UI", 7))
         p.setPen(QColor(80, 120, 130, 100))
-        p.drawText(QRectF(0, h - 14, w - 10, 10), Qt.AlignRight, "v8.0")
+        p.drawText(QRectF(0, h - 14, w - 10, 10), Qt.AlignRight, "Powered by TRAE")
 
         p.end()
 
