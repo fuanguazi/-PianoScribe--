@@ -25,7 +25,7 @@ import subprocess
 import ctypes
 
 APP_NAME = "PianoScribe"
-APP_VERSION = "9.0"
+APP_VERSION = "0.7 beta"
 PUBLISHER = "PianoScribe Team"
 EXE_NAME = "PianoScribe.exe"
 ICON_RES = "pianoscribe_icon.ico"
