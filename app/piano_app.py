@@ -1129,6 +1129,7 @@ class SheetMusicWidget(QGraphicsView):
     Provides the same interface as the old VexFlow-based widget."""
 
     rendering_done = Signal()
+    rendering_progress = Signal(str, int)  # (message, percentage 0-100)
     page_changed = Signal(int, int)
     _svg_ready = Signal()
 
@@ -1320,9 +1321,11 @@ class SheetMusicWidget(QGraphicsView):
         import subprocess
         import copy
 
+        self.rendering_progress.emit('正在启动LilyPond...', 1)
         music21.environment.set('lilypondPath', self._lilypond_exe)
 
         # Parse MIDI with music21
+        self.rendering_progress.emit('解析MIDI文件...', 5)
         try:
             score = music21.converter.parse(midi_path)
         except Exception as e:
@@ -1394,6 +1397,7 @@ class SheetMusicWidget(QGraphicsView):
             use_grand_staff = False
 
         # Write LilyPond file
+        self.rendering_progress.emit('生成LilyPond乐谱文件...', 25)
         ly_base = os.path.join(self._svg_dir, 'score')
         ly_path = ly_base + '.ly'
         try:
@@ -1468,6 +1472,7 @@ class SheetMusicWidget(QGraphicsView):
                 self.logger.warning(f'.ly文件后处理失败: {e}')
 
         # Compile with LilyPond
+        self.rendering_progress.emit('LilyPond编译SVG...', 50)
         try:
             result = subprocess.run(
                 [self._lilypond_exe, '-dbackend=svg', '-dno-point-and-click',
@@ -1484,6 +1489,7 @@ class SheetMusicWidget(QGraphicsView):
             return
 
         # Load SVG pages on the main thread via signal
+        self.rendering_progress.emit('加载渲染结果...', 90)
         self._svg_ready.emit()
 
     def _find_staff_lines_svg(self, svg_path):
@@ -3924,6 +3930,31 @@ class PianoApp(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Q"), self, activated=self.close)
         QShortcut(QKeySequence("Space"), self, activated=self._toggle_playback)
 
+        # === 左下角进度条 ===
+        self._render_progress_bar = QProgressBar()
+        self._render_progress_bar.setRange(0, 100)
+        self._render_progress_bar.setValue(0)
+        self._render_progress_bar.setFixedWidth(200)
+        self._render_progress_bar.setFixedHeight(14)
+        self._render_progress_bar.setTextVisible(False)
+        self._render_progress_bar.hide()
+        self.statusBar().addWidget(self._render_progress_bar)
+        self._render_status_label = QLabel('')
+        self._render_status_label.setStyleSheet('font-size:11px; color:#888;')
+        self._render_status_label.hide()
+        self.statusBar().addWidget(self._render_status_label)
+
+    def closeEvent(self, event):
+        """Ensure clean shutdown — kill any running LilyPond subprocess."""
+        self.logger.info('应用关闭中...')
+        try:
+            import subprocess
+            subprocess.run(['taskkill', '/f', '/im', 'lilypond.exe'],
+                           capture_output=True, timeout=5)
+        except Exception:
+            pass
+        event.accept()
+
     def _show_status(self, msg, timeout=0):
         """Show a transient or persistent status message.
 
@@ -5258,6 +5289,7 @@ class PianoApp(QMainWindow):
         # Sheet music widget (created early so toolbar can reference it)
         self.sheet_widget = SheetMusicWidget()
         self.sheet_widget.rendering_done.connect(self._on_sheet_rendered)
+        self.sheet_widget.rendering_progress.connect(self._on_render_progress)
         self.sheet_widget.page_changed.connect(self._on_page_changed)
 
         # Sheet toolbar
@@ -6528,6 +6560,7 @@ class PianoApp(QMainWindow):
         self.edit_sheet_widget = SheetMusicWidget()
         self.edit_sheet_widget.rendering_done.connect(
             lambda: self._show_status("编辑乐谱渲染完成", 3000))
+        self.edit_sheet_widget.rendering_progress.connect(self._on_render_progress)
         sheet_layout.addWidget(self.edit_sheet_widget, 1)
 
         splitter.addWidget(sheet_card)
@@ -8672,6 +8705,8 @@ class PianoApp(QMainWindow):
 
     def _on_sheet_rendered(self):
         """Called when sheet music SVG has finished loading (or rendering failed)."""
+        self._on_render_progress('完成', 100)
+        QTimer.singleShot(1000, self._hide_render_progress)
         self._show_status("乐谱渲染完成", 3000)
         # Safety net: enable play/stop if notes are ready but synthesis callback didn't fire
         if self.sheet_widget.display_notes and not self.btn_play.isEnabled():
@@ -8681,6 +8716,18 @@ class PianoApp(QMainWindow):
 
         # Show page controls if multi-page
         self._update_page_controls()
+
+    def _on_render_progress(self, msg, pct):
+        """Update bottom-left progress bar during LilyPond rendering."""
+        self._render_status_label.setText(msg)
+        self._render_status_label.show()
+        self._render_progress_bar.setValue(pct)
+        self._render_progress_bar.show()
+
+    def _hide_render_progress(self):
+        """Hide the rendering progress bar."""
+        self._render_progress_bar.hide()
+        self._render_status_label.hide()
 
     def _on_page_changed(self, page, total):
         """Update page label when sheet page changes."""
@@ -9796,6 +9843,19 @@ class SplashWidget(QWidget):
 
 
 def main():
+    # Single-instance guard (Windows named mutex)
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        mutex_name = 'PianoScribe_SingleInstance_v0.7'
+        mutex = kernel32.CreateMutexW(None, False, mutex_name)
+        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            QApplication([])  # Need app for QMessageBox
+            QMessageBox.information(None, "PianoScribe", "PianoScribe 已经在运行中。")
+            return
+    except Exception:
+        pass  # Allow run if mutex fails
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
