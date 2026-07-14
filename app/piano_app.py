@@ -1369,27 +1369,33 @@ class SheetMusicWidget(QGraphicsView):
             bass_part.id = 'Bass'
             bass_part.insert(0, music21.clef.BassClef())
 
-            # Get all notes from the score
-            for elem in score.flatten().notes:
+            # Get all notes AND rests from the score, preserving offsets
+            # Use .flat.notesAndRests (capital A) to include rests
+            for elem in score.flatten().notesAndRests:
                 elem_copy = copy.deepcopy(elem)
+                original_offset = elem.offset if hasattr(elem, 'offset') else 0
                 if hasattr(elem_copy, 'pitch'):
                     if elem_copy.pitch.midi >= 60:
-                        treble_part.append(elem_copy)
+                        treble_part.insert(original_offset, elem_copy)
                     else:
-                        bass_part.append(elem_copy)
+                        bass_part.insert(original_offset, elem_copy)
                 elif hasattr(elem_copy, 'pitches'):  # chord
                     if any(p.midi >= 60 for p in elem_copy.pitches):
-                        treble_part.append(elem_copy)
+                        treble_part.insert(original_offset, elem_copy)
                     else:
-                        bass_part.append(elem_copy)
+                        bass_part.insert(original_offset, elem_copy)
+                else:
+                    # Rest or other — add to both parts at original offset
+                    treble_part.insert(original_offset, copy.deepcopy(elem))
+                    bass_part.insert(original_offset, copy.deepcopy(elem))
 
             # Check if bass part has actual notes (not just clef/time sig)
             bass_has_notes = any(
                 hasattr(e, 'pitch') or hasattr(e, 'pitches')
-                for e in bass_part.flatten().notes)
+                for e in bass_part.flatten().notesAndRests)
             treble_has_notes = any(
                 hasattr(e, 'pitch') or hasattr(e, 'pitches')
-                for e in treble_part.flatten().notes)
+                for e in treble_part.flatten().notesAndRests)
 
             if not bass_has_notes or not treble_has_notes:
                 # One staff is empty — fall back to original single-staff layout
