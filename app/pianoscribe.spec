@@ -8,6 +8,7 @@ import importlib
 sys.setrecursionlimit(5000)
 
 APP_DIR = r'D:\多多\PianoTraining\app'
+PROJECT_DIR = os.path.dirname(APP_DIR)  # D:\多多\PianoTraining
 
 # Collect hidden imports
 hiddenimports = [
