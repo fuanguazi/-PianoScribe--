@@ -41,6 +41,7 @@ hiddenimports = [
     'onnxruntime',
     'pydub',
     'pyfluidsynth',
+    'fluidsynth',
     'soundfile',
     'resampy',
     'librosa',
@@ -64,15 +65,19 @@ datas = [
 
 # Collect binary files (FluidSynth DLL)
 binaries = []
-fs_dll_dir = r'D:\tools\fluidsynth\bin'
-if not os.path.isdir(fs_dll_dir):
-    fs_dll_dir = r'C:\tools\fluidsynth\bin'
-if not os.path.isdir(fs_dll_dir):
-    fs_dll_dir = r'C:\tools\fluidsynth-temp\bin'
-if os.path.isdir(fs_dll_dir):
-    for f in os.listdir(fs_dll_dir):
-        if f.endswith('.dll'):
-            binaries.append((os.path.join(fs_dll_dir, f), 'fluidsynth_bin'))
+fs_dll_dirs = [
+    os.path.join(PROJECT_DIR, 'fluidsynth', 'bin'),        # 项目自带
+    r'D:\tools\fluidsynth\bin',
+    r'C:\tools\fluidsynth\bin',
+    r'C:\tools\fluidsynth-temp\bin',
+]
+for fs_dll_dir in fs_dll_dirs:
+    if os.path.isdir(fs_dll_dir):
+        for f in os.listdir(fs_dll_dir):
+            if f.endswith('.dll'):
+                # 映射到 fluidsynth_bin/ 目录，与 piano_app.py 启动代码一致
+                binaries.append((os.path.join(fs_dll_dir, f), 'fluidsynth_bin'))
+        break  # Use first found directory
 
 a = Analysis(
     [os.path.join(APP_DIR, 'piano_app.py')],

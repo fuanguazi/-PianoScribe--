@@ -45,8 +45,18 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else
 # Register FluidSynth DLL directory (Windows)
 _fluidsynth_dll_dirs = [
     os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Temp', 'fluidsynth', 'bin'),
+    r'C:\tools\fluidsynth\bin',
     r'C:\tools\fluidsynth-temp\bin',
 ]
+# Also search in PyInstaller bundle (sys._MEIPASS)
+if getattr(sys, 'frozen', False):
+    _meipass = sys._MEIPASS
+    _fluidsynth_dll_dirs.insert(0, os.path.join(_meipass, 'fluidsynth_bin'))
+    _fluidsynth_dll_dirs.insert(0, _meipass)
+else:
+    # Development: search project root fluidsynth/bin
+    _proj_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _fluidsynth_dll_dirs.insert(0, os.path.join(_proj_dir, 'fluidsynth', 'bin'))
 for _dll_dir in _fluidsynth_dll_dirs:
     if os.path.isdir(_dll_dir):
         if hasattr(os, 'add_dll_directory'):
