@@ -49,6 +49,11 @@ hiddenimports = [
     'mido',
     'py7zr',
     'PIL',
+    'jaraco',
+    'jaraco.text',
+    'jaraco.context',
+    'jaraco.functools',
+    'jaraco.collections',
 ]
 
 # Collect data files
