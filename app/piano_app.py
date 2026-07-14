@@ -1385,9 +1385,8 @@ class SheetMusicWidget(QGraphicsView):
                     else:
                         bass_part.insert(original_offset, elem_copy)
                 else:
-                    # Rest or other — add to both parts at original offset
+                    # Rest or other — only add to treble (LilyPond auto-fills bass rests)
                     treble_part.insert(original_offset, copy.deepcopy(elem))
-                    bass_part.insert(original_offset, copy.deepcopy(elem))
 
             # Check if bass part has actual notes (not just clef/time sig)
             bass_has_notes = any(
@@ -1477,25 +1476,31 @@ class SheetMusicWidget(QGraphicsView):
                     )
                 ly_content = re.sub(r'\\layout\s*\{', _layout_replacer, ly_content)
                 # Use A4 paper with proper layout for full-page rendering
-                if '\\paper' not in ly_content:
-                    ly_content = ly_content.replace(
-                        '\\header',
-                        '\\paper {\n'
-                        '  #(set-paper-size "a4")\n'
-                        '  page-breaking = #ly:optimal-breaking\n'
-                        '  ragged-last-bottom = ##f\n'
-                        '  ragged-right = ##f\n'
-                        '  indent = 0\n'
-                        '  short-indent = 0\n'
-                        '  line-width = #(- paper-width (* 24 mm))\n'
-                        '  system-system-spacing = #((padding . 4) (stretchability . 6))\n'
-                        '  top-margin = 15\n'
-                        '  bottom-margin = 15\n'
-                        '  left-margin = 12\n'
-                        '  right-margin = 12\n'
-                        '  print-page-number = ##f\n'
-                        '}\n\\header'
-                    )
+                # Always remove any existing \paper block (from music21 or elsewhere)
+                # to ensure our A4 settings take effect
+                a4_paper = (
+                    '\\paper {\n'
+                    '  #(set-paper-size "a4")\n'
+                    '  page-breaking = #ly:optimal-breaking\n'
+                    '  ragged-last-bottom = ##f\n'
+                    '  ragged-right = ##f\n'
+                    '  indent = 0\n'
+                    '  short-indent = 0\n'
+                    '  line-width = #(- paper-width (* 24 mm))\n'
+                    '  system-system-spacing = #((padding . 4) (stretchability . 6))\n'
+                    '  top-margin = 15\n'
+                    '  bottom-margin = 15\n'
+                    '  left-margin = 12\n'
+                    '  right-margin = 12\n'
+                    '  print-page-number = ##f\n'
+                    '}\n'
+                )
+                # Remove any existing \paper { ... } block
+                ly_content = re.sub(r'\\paper\s*\{.*?\n\}', '', ly_content, flags=re.DOTALL)
+                ly_content = ly_content.replace(
+                    '\\header',
+                    a4_paper + '\\header'
+                )
                 with open(ly_path, 'w', encoding='utf-8') as f:
                     f.write(ly_content)
             except Exception as e:
@@ -1654,8 +1659,7 @@ class SheetMusicWidget(QGraphicsView):
                 svg_files = ['score.svg']
 
         y_offset = 0
-        max_pages = 20
-        for svg_file in svg_files[:max_pages]:
+        for svg_file in svg_files:
             svg_path = os.path.join(self._svg_dir, svg_file)
             item = QGraphicsSvgItem(svg_path)
             if item.boundingRect().width() <= 0:
@@ -1669,12 +1673,6 @@ class SheetMusicWidget(QGraphicsView):
         if self._page_count > 0:
             self._page_height = (
                 self._svg_items[0].boundingRect().height() + 20)
-
-        if len(svg_files) > max_pages:
-            from PySide6.QtWidgets import QGraphicsTextItem
-            more_text = QGraphicsTextItem(f"... 共 {len(svg_files)} 页，显示前 {max_pages} 页 ...")
-            more_text.setPos(0, y_offset)
-            self._scene.addItem(more_text)
 
         if self._svg_items:
             # Set explicit scene rect to avoid any clipping
