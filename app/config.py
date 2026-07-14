@@ -22,9 +22,11 @@ SEGMENT_SAMPLES = int(SEGMENT_SECONDS * SAMPLE_RATE)
 SEGMENT_FRAMES = int(SEGMENT_SECONDS * FRAME_RATE)
 
 # Paths
-DATA_DIR = r"D:\PianoTraining\data"
-CHECKPOINT_DIR = r"D:\PianoTraining\app\checkpoints"
-EXPORT_DIR = r"D:\PianoTraining\app\export"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_DIR = os.path.dirname(_BASE_DIR)
+DATA_DIR = os.path.join(_PROJECT_DIR, "data")
+CHECKPOINT_DIR = os.path.join(_BASE_DIR, "checkpoints")
+EXPORT_DIR = os.path.join(_BASE_DIR, "export")
 MAESTRO_DIR = os.path.join(DATA_DIR, "maestro-v3.0.0")
 PRECOMPUTE_DIR = os.path.join(DATA_DIR, "precomputed_v6")
 

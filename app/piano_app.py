@@ -235,7 +235,7 @@ THEMES = {
 
 
 def get_theme():
-    return THEMES[_current_theme_name]
+    return THEMES.get(_current_theme_name, THEMES['light'])
 
 
 def get_stylesheet(theme_name=None):
@@ -693,7 +693,8 @@ class ModeCard(AcrylicContainer):
                 self._icon_label.setStyleSheet("border: none; background: transparent;")
             except Exception:
                 # Fallback to emoji-style text if icon rendering fails.
-                self._icon_label.setText(icon)
+                emoji_map = {"mic": "🎤", "waveform": "🎵", "piano": "🎹", "edit": "✏️", "music": "🎼", "settings": "⚙️", "play": "▶️", "stop": "⏹️", "export": "📤", "folder": "📁"}
+                self._icon_label.setText(emoji_map.get(icon, "🎵"))
                 self._icon_label.setStyleSheet("font-size: 40px; border: none; background: transparent;")
         else:
             self._icon_label.setText(icon)
@@ -1030,6 +1031,8 @@ def grade_difficulty(midi_path):
     range_score = min(10, pitch_range / 60.0 * 10)
 
     short_notes = sum(1 for n in all_notes if n.end - n.start < 0.1)
+    if len(all_notes) == 0:
+        return 0
     short_ratio = short_notes / len(all_notes)
     rhythm_score = min(10, short_ratio * 20)
 
@@ -1173,9 +1176,18 @@ class SheetMusicWidget(QGraphicsView):
         self._svg_dir = None  # directory containing SVG pages
 
         # LilyPond paths
-        self._lilypond_exe = os.path.join(
-            APP_DIR,
-            'lilypond-2.24.4', 'bin', 'lilypond.exe')
+        # PyInstaller-aware: check sys._MEIPASS first, then system PATH, then APP_DIR
+        _lilypond_base = getattr(sys, '_MEIPASS', '')
+        if _lilypond_base:
+            self._lilypond_exe = os.path.join(_lilypond_base, 'lilypond-2.24.4', 'bin', 'lilypond.exe')
+        else:
+            _which_lp = shutil.which('lilypond')
+            if _which_lp:
+                self._lilypond_exe = _which_lp
+            else:
+                self._lilypond_exe = os.path.join(
+                    APP_DIR,
+                    'lilypond-2.24.4', 'bin', 'lilypond.exe')
 
         self.setMinimumSize(400, 250)
         self._update_bg_style()
@@ -1307,6 +1319,13 @@ class SheetMusicWidget(QGraphicsView):
         self._svg_dir = os.path.join(tempfile.gettempdir(), f'_piano_svg_{os.getpid()}')
         os.makedirs(self._svg_dir, exist_ok=True)
 
+        # Set LilyPond path before starting worker thread (music21.environment.set is not thread-safe)
+        try:
+            import music21
+            music21.environment.set('lilypondPath', self._lilypond_exe)
+        except Exception:
+            pass
+
         # Run LilyPond compilation in background thread
         self._render_thread = threading.Thread(
             target=self._lilypond_worker,
@@ -1317,12 +1336,17 @@ class SheetMusicWidget(QGraphicsView):
 
     def _lilypond_worker(self, midi_path):
         """Background worker: MIDI → music21 → LilyPond → SVG."""
-        import music21
+        try:
+            import music21
+        except ImportError:
+            self.logger.error('music21 未安装')
+            self.rendering_progress.emit('错误: music21 未安装', 0)
+            self.rendering_done.emit()
+            return
         import subprocess
         import copy
 
         self.rendering_progress.emit('正在启动LilyPond...', 1)
-        music21.environment.set('lilypondPath', self._lilypond_exe)
 
         # Parse MIDI with music21
         self.rendering_progress.emit('解析MIDI文件...', 5)
@@ -1477,7 +1501,7 @@ class SheetMusicWidget(QGraphicsView):
             result = subprocess.run(
                 [self._lilypond_exe, '-dbackend=svg', '-dno-point-and-click',
                  '--output', ly_base, ly_path],
-                capture_output=True, timeout=120,
+                capture_output=True, text=True, timeout=120,
                 cwd=self._svg_dir
             )
             self.logger.info(f'LilyPond编译完成, exit={result.returncode}')
@@ -3882,7 +3906,7 @@ class PianoApp(QMainWindow):
         }
 
         # Edit mode debounce timer for sheet music re-rendering
-        self._edit_render_timer = QTimer()
+        self._edit_render_timer = QTimer(self)
         self._edit_render_timer.setSingleShot(True)
         self._edit_render_timer.setInterval(500)
         self._edit_render_timer.timeout.connect(self._refresh_edit_sheet_music)
@@ -3945,14 +3969,47 @@ class PianoApp(QMainWindow):
         self.statusBar().addWidget(self._render_status_label)
 
     def closeEvent(self, event):
-        """Ensure clean shutdown — kill any running LilyPond subprocess."""
+        """Ensure clean shutdown."""
         self.logger.info('应用关闭中...')
+        # Stop timers
+        for name in ['_cursor_timer', '_edit_render_timer', '_edit_play_timer']:
+            t = getattr(self, name, None)
+            if t and t.isActive():
+                t.stop()
+        # Wait for render thread
+        if self._render_thread and self._render_thread.is_alive():
+            self._render_thread.join(timeout=3)
+        # Kill LilyPond subprocess
         try:
             import subprocess
             subprocess.run(['taskkill', '/f', '/im', 'lilypond.exe'],
                            capture_output=True, timeout=5)
         except Exception:
             pass
+        # Clean up pygame
+        try:
+            import pygame
+            pygame.mixer.music.stop()
+            pygame.mixer.quit()
+        except Exception:
+            pass
+        # Clean up MCI
+        try:
+            import ctypes
+            for dev in ['pianoplayback', 'splashmidi', 'editplayback']:
+                ctypes.windll.winmm.mciSendStringW(f'close {dev}', None, 0, None)
+        except Exception:
+            pass
+        # Clean temp files
+        for attr in ['_playback_tmp_wav', '_playback_tmp_mid', '_edit_playback_mid']:
+            path = getattr(self, attr, None)
+            if path and os.path.exists(path):
+                try: os.remove(path)
+                except: pass
+        # Remove SVG temp dir
+        if hasattr(self, '_svg_dir') and self._svg_dir and os.path.isdir(self._svg_dir):
+            try: import shutil; shutil.rmtree(self._svg_dir, ignore_errors=True)
+            except: pass
         event.accept()
 
     def _show_status(self, msg, timeout=0):
@@ -4732,7 +4789,7 @@ class PianoApp(QMainWindow):
             pos_anim.setDuration(300)
             pos_anim.setStartValue(offset_geo.toRect())
             pos_anim.setEndValue(original_geo)
-            pos_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            pos_anim.setEasingCurve(QEasingCurve.OutCubic)
 
             # Keep references to prevent garbage collection
             self._card_anims.append((opacity_anim, pos_anim))
@@ -9103,6 +9160,10 @@ class PianoApp(QMainWindow):
                     self.logger.info(f'FluidSynth 音频播放: {len(segment)} 样本')
             except Exception as e:
                 self.logger.error(f'pygame 播放失败: {e}')
+                if self._playback_tmp_wav and os.path.exists(self._playback_tmp_wav):
+                    try: os.remove(self._playback_tmp_wav)
+                    except: pass
+                    self._playback_tmp_wav = None
 
         # Fallback: MCI MIDI synthesizer
         if not played:
@@ -9135,6 +9196,7 @@ class PianoApp(QMainWindow):
                             f'play pianoplayback from {start_ms}', None, 0, None)
                     else:
                         ctypes.windll.winmm.mciSendStringW('play pianoplayback', None, 0, None)
+                    self._cursor_timer.start(50)
                     self.logger.info(f'MCI MIDI 回退播放: {len(notes)} 音符')
                 else:
                     self.logger.warning(f'MCI open 失败, 错误码={r}')
@@ -9302,11 +9364,17 @@ class PianoApp(QMainWindow):
         if not path:
             return
         try:
-            # Find LilyPond
-            lilypond_dir = os.path.join(APP_DIR, "lilypond-2.24.4", "bin")
-            lilypond_exe = os.path.join(lilypond_dir, "lilypond.exe") if os.path.isdir(lilypond_dir) else "lilypond"
-            if not os.path.exists(lilypond_exe) and shutil.which("lilypond"):
-                lilypond_exe = "lilypond"
+            # Find LilyPond (PyInstaller-aware: check sys._MEIPASS first, then system PATH, then APP_DIR)
+            _lilypond_base = getattr(sys, '_MEIPASS', '')
+            if _lilypond_base:
+                lilypond_exe = os.path.join(_lilypond_base, "lilypond-2.24.4", "bin", "lilypond.exe")
+            else:
+                _which_lp = shutil.which("lilypond")
+                if _which_lp:
+                    lilypond_exe = _which_lp
+                else:
+                    lilypond_dir = os.path.join(APP_DIR, "lilypond-2.24.4", "bin")
+                    lilypond_exe = os.path.join(lilypond_dir, "lilypond.exe") if os.path.isdir(lilypond_dir) else "lilypond"
             if lilypond_exe != "lilypond" and not os.path.exists(lilypond_exe):
                 QMessageBox.warning(self, "提示", "未找到LilyPond，无法导出PDF")
                 return
@@ -9351,8 +9419,10 @@ class PianoApp(QMainWindow):
         factor = value / 100.0
         if hasattr(self, 'sheet_widget'):
             self.sheet_widget.speed_factor = factor
-        if hasattr(self, 'edit_roll_widget'):
-            self.edit_roll_widget.speed_factor = factor
+        if hasattr(self, 'edit_piano_roll'):
+            self.edit_piano_roll.speed_factor = factor
+        if hasattr(self, 'piano_roll'):
+            self.piano_roll.speed_factor = factor
 
     def _toggle_playback(self):
         """Toggle play/pause."""

@@ -7,8 +7,8 @@ import importlib
 
 sys.setrecursionlimit(5000)
 
-APP_DIR = r'D:\多多\PianoTraining\app'
-PROJECT_DIR = os.path.dirname(APP_DIR)  # D:\多多\PianoTraining
+APP_DIR = os.path.abspath(SPECPATH)
+PROJECT_DIR = os.path.dirname(APP_DIR)  # parent of app/
 
 # Collect hidden imports
 hiddenimports = [
@@ -54,6 +54,14 @@ hiddenimports = [
     'jaraco.context',
     'jaraco.functools',
     'jaraco.collections',
+    'design_tokens',
+    'app_icons',
+    'app_settings',
+    'soundfont_manager',
+    'empty_state',
+    'toast',
+    'glass_ui',
+    'skeleton',
 ]
 
 # Collect data files
@@ -65,7 +73,7 @@ datas = [
     (os.path.join(APP_DIR, 'lilypond-2.24.4'), 'lilypond-2.24.4'),
     # pretty_midi default soundfont
     (os.path.join(os.path.dirname(importlib.import_module('pretty_midi').__file__), 'TimGM6mb.sf2'), 'pretty_midi'),
-    # basic_pitch model
+    # basic_pitch package (includes all .onnx model files)
     (os.path.dirname(importlib.import_module('basic_pitch').__file__), 'basic_pitch'),
 ]
 
