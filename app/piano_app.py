@@ -1,4 +1,4 @@
-"""PianoScribe - Professional AI Piano Sheet Music Generator v9
+"""PianoScribe - Professional AI Piano Sheet Music Generator v0.7 beta
 
 Liquid Glass UI - A modern translucent glass-morphism interface inspired by
 Apple's Liquid Glass design language, featuring frosted-glass panels, soft
@@ -5014,7 +5014,7 @@ class PianoApp(QMainWindow):
             pass
         version_row.addWidget(monogram_label)
 
-        version_label = QLabel("v7.0 | 钢琴乐谱生成器")
+        version_label = QLabel("v0.7 beta | 钢琴乐谱生成器")
         version_label.setAlignment(Qt.AlignCenter)
         self._version_label = version_label
         version_label.setStyleSheet(
@@ -9780,7 +9780,7 @@ class SplashWidget(QWidget):
         # Version
         p.setFont(QFont("Segoe UI", 7))
         p.setPen(QColor(80, 120, 130, 100))
-        p.drawText(QRectF(0, h - 14, w - 10, 10), Qt.AlignRight, "Powered by TRAE")
+        p.drawText(QRectF(0, h - 14, w - 10, 10), Qt.AlignRight, "v0.7 beta | Powered by TRAE")
 
         p.end()
 
