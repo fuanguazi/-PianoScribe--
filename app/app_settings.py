@@ -16,6 +16,7 @@ import json
 import tempfile
 import copy
 import sys
+import threading
 
 
 # ============================================================
@@ -110,6 +111,7 @@ def _deep_merge(base, override):
 # 加载 / 保存
 # ============================================================
 _cache = None  # 进程内缓存，避免每次读盘
+_cache_lock = threading.Lock()
 
 
 def load_settings(force_reload=False):
@@ -122,23 +124,24 @@ def load_settings(force_reload=False):
         完整 settings dict，永远包含所有 key（缺失的用 DEFAULTS 补齐）
     """
     global _cache
-    if _cache is not None and not force_reload:
-        return _cache
+    with _cache_lock:
+        if _cache is not None and not force_reload:
+            return _cache
 
-    path = get_settings_path()
-    stored = {}
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                stored = json.load(f)
-            if not isinstance(stored, dict):
+        path = get_settings_path()
+        stored = {}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    stored = json.load(f)
+                if not isinstance(stored, dict):
+                    stored = {}
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
                 stored = {}
-        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-            stored = {}
 
-    merged = _deep_merge(DEFAULTS, stored)
-    _cache = merged
-    return merged
+        merged = _deep_merge(DEFAULTS, stored)
+        _cache = merged
+        return merged
 
 
 def save_settings(settings_dict):
@@ -163,7 +166,8 @@ def save_settings(settings_dict):
             pass
         raise
 
-    _cache = copy.deepcopy(settings_dict)
+    with _cache_lock:
+        _cache = copy.deepcopy(settings_dict)
 
 
 def get(key_path, default=None):

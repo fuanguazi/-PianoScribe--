@@ -16,9 +16,12 @@ pixmap cache keyed by ``(preset, color, size)`` so theme switches are cheap.
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, Dict, Optional, Tuple
 
 from PySide6.QtCore import Qt, QSize
+
+_log = logging.getLogger(__name__)
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -655,8 +658,8 @@ class EmptyState(QWidget):
         try:
             cb()
         except Exception:
-            # Defensive — never let a user callback crash the UI.
-            pass
+            import traceback
+            _log.warning("CTA callback failed: %s", traceback.format_exc())
 
     # ----------------------------------------------------------
     #  Convenience accessors

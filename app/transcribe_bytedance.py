@@ -5,6 +5,9 @@ import numpy as np
 import librosa
 import torch
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+checkpoint_path = os.path.join(_BASE_DIR, "checkpoints", "CRNN_note_F1=0.9677_pedal_F1=0.9186.pth")
+
 def transcribe_with_bytedance(audio_path, output_midi_path, device='cuda'):
     """Transcribe using ByteDance's pretrained model."""
     from piano_transcription_inference import PianoTranscription, sample_rate
@@ -15,8 +18,6 @@ def transcribe_with_bytedance(audio_path, output_midi_path, device='cuda'):
     print(f"Audio duration: {len(audio)/sample_rate:.1f}s, SR: {sr}")
     
     print(f"Transcribing with ByteDance model on {device}...")
-    # Use local checkpoint path
-    checkpoint_path = r"c:\Users\Administrator\Desktop\乐谱生成\新建文件夹\CRNN_note_F1=0.9677_pedal_F1=0.9186 (1).pth"
     transcriptor = PianoTranscription(device=device, checkpoint_path=checkpoint_path)
     transcribed_dict = transcriptor.transcribe(audio, output_midi_path)
     

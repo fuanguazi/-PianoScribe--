@@ -242,7 +242,7 @@ def main():
         try:
             import winreg
             key = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE,
-                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\\" + APP_NAME)
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" + "\\" + APP_NAME)
             winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, APP_NAME)
             winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, APP_VERSION)
             winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, PUBLISHER)

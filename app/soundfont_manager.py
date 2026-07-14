@@ -267,12 +267,12 @@ class SoundFontDownloader(QObject):
             self.failed.emit(f"网络错误: {e.reason}")
         except Exception as e:
             self.failed.emit(f"下载失败: {type(e).__name__}: {e}")
-            # 清理临时文件
-            try:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except OSError:
-                pass
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
 
 # ============================================================
@@ -308,6 +308,12 @@ def verify_sf2(path):
         return ok
     except ImportError:
         # fluidsynth 未安装，靠文件头检查
+        import logging
+        _log = logging.getLogger(__name__)
+        _log.warning("fluidsynth not available, SF2 verification limited to RIFF header check")
         return True
     except Exception:
+        import logging
+        _log = logging.getLogger(__name__)
+        _log.warning("fluidsynth SF2 verification failed")
         return False

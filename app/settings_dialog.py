@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem,
     QLineEdit, QProgressBar, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox,
     QSlider, QHeaderView, QButtonGroup, QMessageBox, QFrame, QGroupBox,
-    QFormLayout, QRadioButton, QButtonGroup as QBtnGroup,
+    QFormLayout, QRadioButton,
 )
 from PySide6.QtGui import QFont
 

@@ -9,7 +9,8 @@ import librosa
 import pretty_midi
 
 
-CHECKPOINT_PATH = r"c:\Users\Administrator\Desktop\乐谱生成\新建文件夹\CRNN_note_F1=0.9677_pedal_F1=0.9186 (1).pth"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CHECKPOINT_PATH = os.path.join(_BASE_DIR, "checkpoints", "CRNN_note_F1=0.9677_pedal_F1=0.9186.pth")
 SAMPLE_RATE = 16000  # piano_transcription_inference 的采样率
 DEDUP_TOLERANCE_SEC = 0.03  # 去重容差 ±30ms
 
@@ -171,11 +172,10 @@ def main():
         separate_dir = os.path.join(audio_dir, "separated")
 
     # 临时MIDI文件
-    temp_dir = tempfile.mkdtemp(prefix="sat_")
-    vocals_midi = os.path.join(temp_dir, "vocals.mid")
-    no_vocals_midi = os.path.join(temp_dir, "no_vocals.mid")
+    with tempfile.TemporaryDirectory(prefix="sat_") as temp_dir:
+        vocals_midi = os.path.join(temp_dir, "vocals.mid")
+        no_vocals_midi = os.path.join(temp_dir, "no_vocals.mid")
 
-    try:
         # 步骤1：源分离
         step_start = time.time()
         vocals_path, no_vocals_path = separate_audio(args.audio, separate_dir)
@@ -225,16 +225,6 @@ def main():
             print(f"  伴奏转录耗时: {no_vocals_time:.1f}s")
             print(f"  合并耗时: {merge_time:.1f}s")
         print("=" * 50)
-
-    finally:
-        # 清理临时文件
-        for f in [vocals_midi, no_vocals_midi]:
-            if os.path.isfile(f):
-                os.remove(f)
-        try:
-            os.rmdir(temp_dir)
-        except OSError:
-            pass
 
 
 if __name__ == "__main__":

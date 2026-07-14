@@ -9,6 +9,11 @@ import argparse
 import numpy as np
 import pandas as pd
 
+try:
+    import soundfile as sf
+except ImportError:
+    raise ImportError("soundfile library is required: pip install soundfile")
+
 
 def synthesize_midi_pretty(midi_path, wav_path, sample_rate=44100):
     """Synthesize a MIDI file to WAV using pretty_midi."""
@@ -24,7 +29,6 @@ def synthesize_midi_pretty(midi_path, wav_path, sample_rate=44100):
         if max_val > 0:
             audio = audio / max_val * 0.9
 
-        import soundfile as sf
         sf.write(wav_path, audio, sample_rate)
         return True
     except Exception as e:
@@ -72,7 +76,6 @@ def synthesize_midi_simple(midi_path, wav_path, sample_rate=44100):
         if max_val > 0:
             audio = audio / max_val * 0.9
 
-        import soundfile as sf
         sf.write(wav_path, audio.astype(np.float32), sample_rate)
         return True
     except Exception as e:

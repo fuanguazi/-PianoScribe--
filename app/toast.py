@@ -465,8 +465,8 @@ class Toast(QFrame):
         """
         color_str = _level_color_str(self._level)
         try:
-            from app_icons import get_pixmap  # type: ignore[import-not-found]
-            pix = get_pixmap(
+            from app_icons import icon_pixmap  # type: ignore[import-not-found]
+            pix = icon_pixmap(
                 _ICON_NAMES[self._level],
                 _ICON_SIZE,
                 color_str,

@@ -22,30 +22,31 @@ import logging
 from datetime import datetime
 
 # Setup logging
-_LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-os.makedirs(_LOG_DIR, exist_ok=True)
-_LOG_FILE = os.path.join(_LOG_DIR, f'transcribe_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
-
-# Only setup if not already configured
-if not logging.getLogger('transcribe').handlers:
-    _handler = logging.FileHandler(_LOG_FILE, encoding='utf-8')
-    _handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s'))
-    _logger = logging.getLogger('transcribe')
-    _logger.setLevel(logging.DEBUG)
-    _logger.addHandler(_handler)
-    # Also add stream handler for console output
-    _stream = logging.StreamHandler()
-    _stream.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s'))
-    _logger.addHandler(_stream)
-else:
-    _logger = logging.getLogger('transcribe')
+_logger = logging.getLogger('transcribe')
+_logger.setLevel(logging.DEBUG)
+logger = _logger
 
 # Silence noisy third-party loggers
 for _noisy in ['numba', 'numba.core', 'numba.core.byteflow', 'numba.core.interpreter',
                'librosa', 'torch', 'urllib3', 'matplotlib', 'PIL']:
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
-logger = _logger
+
+def setup_logging():
+    """Setup file and stream handlers for the transcribe logger.
+    Called from main() to avoid creating log files at module import time."""
+    _LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    os.makedirs(_LOG_DIR, exist_ok=True)
+    _LOG_FILE = os.path.join(_LOG_DIR, f'transcribe_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+    
+    handler = next((h for h in _logger.handlers if isinstance(h, logging.FileHandler)), None)
+    if handler is None:
+        _handler = logging.FileHandler(_LOG_FILE, encoding='utf-8')
+        _handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s'))
+        _logger.addHandler(_handler)
+        _stream = logging.StreamHandler()
+        _stream.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s'))
+        _logger.addHandler(_stream)
 
 
 def _auto_device(purpose=None):
@@ -66,7 +67,7 @@ def _auto_device(purpose=None):
                 return 'cpu'
             # 'auto' → fall through to detection below
         except Exception as e:
-            logger.debug(f"[Settings] failed to read device settings: {e}")
+            logger.warning(f"[Settings] failed to read device settings: {e}")
     try:
         import torch
         return 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -248,7 +249,7 @@ def separate_audio(audio_path, output_dir, skip_if_exists=True):
         user_source = app_settings.get_separation_source()
         inf_params = app_settings.get_separation_inference_params()
     except Exception as e:
-        logger.debug(f"[Settings] failed to read sep settings (using defaults): {e}")
+        logger.warning(f"[Settings] failed to read sep settings (using defaults): {e}")
 
     # Build model order: user's pick first (dedup), rest as fallback.
     all_models = list(_SEPARATION_MODELS)
@@ -1928,6 +1929,7 @@ def clean_midi_post(input_path, output_path, original_audio_path=None):
 
 
 def main():
+    setup_logging()
     parser = argparse.ArgumentParser(description="Split + Transcribe + Smart Merge pipeline v3")
     parser.add_argument("audio", help="Input audio file (wav/mp3/m4a)")
     parser.add_argument("--output", help="Output MIDI file", default=None)
