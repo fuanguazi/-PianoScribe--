@@ -9455,7 +9455,8 @@ class PianoApp(QMainWindow):
                 f.write('}\n')
             # Run LilyPond
             result = subprocess.run([lilypond_exe, '-o', os.path.splitext(path)[0], ly_path],
-                                    capture_output=True, text=True, timeout=60)
+                                    capture_output=True, text=True,
+                                    encoding='utf-8', timeout=60)
             if result.returncode == 0 and os.path.exists(path):
                 self.logger.info(f'导出PDF: {path}')
                 QMessageBox.information(self, "成功", f"PDF已导出到:\n{path}")

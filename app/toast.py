@@ -96,7 +96,7 @@ _LEVELS = ("success", "info", "warning", "error")
 
 _ICON_NAMES = {
     "success": "check_circle",
-    "info":    "info_circle",
+    "info":    "info",
     "warning": "alert_triangle",
     "error":   "alert_circle",
 }
