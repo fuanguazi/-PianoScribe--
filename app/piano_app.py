@@ -1360,7 +1360,6 @@ class SheetMusicWidget(QGraphicsView):
         # Split into treble and bass parts for grand staff
         use_grand_staff = True
         try:
-            # Try to split at middle C (MIDI 60)
             treble_part = music21.stream.Part()
             treble_part.id = 'Treble'
             treble_part.insert(0, music21.clef.TrebleClef())
@@ -1369,23 +1368,56 @@ class SheetMusicWidget(QGraphicsView):
             bass_part.id = 'Bass'
             bass_part.insert(0, music21.clef.BassClef())
 
-            # Get all notes AND rests from the score, preserving offsets
-            # Use .flat.notesAndRests (capital A) to include rests
-            for elem in score.flatten().notesAndRests:
+            flat = score.flatten()
+
+            # Transfer ALL key signatures at their correct positions
+            for ks in flat.getElementsByClass(music21.key.KeySignature):
+                treble_part.insert(ks.offset, copy.deepcopy(ks))
+                bass_part.insert(ks.offset, copy.deepcopy(ks))
+            # If no key signature, add C major to avoid ambiguity
+            if not flat.getElementsByClass(music21.key.KeySignature):
+                treble_part.insert(0, music21.key.KeySignature(0))
+                bass_part.insert(0, music21.key.KeySignature(0))
+
+            # Transfer ALL time signatures at their correct positions
+            for ts in flat.getElementsByClass(music21.meter.TimeSignature):
+                treble_part.insert(ts.offset, copy.deepcopy(ts))
+                bass_part.insert(ts.offset, copy.deepcopy(ts))
+            if not flat.getElementsByClass(music21.meter.TimeSignature):
+                treble_part.insert(0, music21.meter.TimeSignature('4/4'))
+                bass_part.insert(0, music21.meter.TimeSignature('4/4'))
+
+            # Split notes/rests into treble and bass, preserving timing
+            for elem in flat.notesAndRests:
                 elem_copy = copy.deepcopy(elem)
                 original_offset = elem.offset if hasattr(elem, 'offset') else 0
                 if hasattr(elem_copy, 'pitch'):
+                    # Single note
                     if elem_copy.pitch.midi >= 60:
                         treble_part.insert(original_offset, elem_copy)
                     else:
                         bass_part.insert(original_offset, elem_copy)
                 elif hasattr(elem_copy, 'pitches'):  # chord
-                    if any(p.midi >= 60 for p in elem_copy.pitches):
+                    treble_pitches = [p for p in elem_copy.pitches if p.midi >= 60]
+                    bass_pitches = [p for p in elem_copy.pitches if p.midi < 60]
+                    if treble_pitches and bass_pitches:
+                        # Mixed chord: split into treble and bass portions
+                        tc = music21.chord.Chord(treble_pitches)
+                        tc.duration = copy.deepcopy(elem_copy.duration)
+                        if hasattr(elem_copy, 'articulations'):
+                            tc.articulations = list(elem_copy.articulations)
+                        treble_part.insert(original_offset, tc)
+                        bc = music21.chord.Chord(bass_pitches)
+                        bc.duration = copy.deepcopy(elem_copy.duration)
+                        if hasattr(elem_copy, 'articulations'):
+                            bc.articulations = list(elem_copy.articulations)
+                        bass_part.insert(original_offset, bc)
+                    elif treble_pitches:
                         treble_part.insert(original_offset, elem_copy)
                     else:
                         bass_part.insert(original_offset, elem_copy)
                 else:
-                    # Rest or other — only add to treble (LilyPond auto-fills bass rests)
+                    # Rest — only add to treble (LilyPond auto-fills bass rests)
                     treble_part.insert(original_offset, copy.deepcopy(elem))
 
             # Check if bass part has actual notes (not just clef/time sig)
@@ -1404,15 +1436,6 @@ class SheetMusicWidget(QGraphicsView):
             else:
                 # Create new score with grand staff
                 new_score = music21.stream.Score()
-
-                # Add time signature and tempo
-                if score.flatten().getElementsByClass(music21.meter.TimeSignature):
-                    ts = score.flatten().getElementsByClass(music21.meter.TimeSignature)[0]
-                    treble_part.insert(0, copy.deepcopy(ts))
-                    bass_part.insert(0, copy.deepcopy(ts))
-                else:
-                    treble_part.insert(0, music21.meter.TimeSignature('4/4'))
-                    bass_part.insert(0, music21.meter.TimeSignature('4/4'))
 
                 # Add tempo marking
                 tempo = music21.tempo.MetronomeMark(number=self.bpm)
@@ -1463,21 +1486,44 @@ class SheetMusicWidget(QGraphicsView):
             try:
                 with open(ly_path, 'r', encoding='utf-8') as f:
                     ly_content = f.read()
-                # Add measure number engraver and compact layout (replace ALL \layout occurrences)
-                # Use a replacement function to avoid re.sub interpreting backslashes
-                # in the replacement string as regex escape sequences (e.g. \l, \c, \S)
-                def _layout_replacer(m):
-                    return (
-                        '\\layout {\n'
-                        '  \\context {\\Score \\override BarNumber.break-visibility = #end-of-line-invisible }\n'
-                        '  \\context {\\Score barNumberVisibility = #(every-nth-bar-number-visible 1) }\n'
-                        '  \\context {\\Score \\override SpacingSpanner.base-shortest-duration = #(ly:make-moment 1/16) }\n'
-                        '  \\context {\\Score \\override SpacingSpanner.common-shortest-duration = #(ly:make-moment 1/8) }\n'
-                    )
-                ly_content = re.sub(r'\\layout\s*\{', _layout_replacer, ly_content)
+                # Add measure number engraver and compact layout
+                # Replace the ENTIRE \layout { ... } block (with balanced braces)
+                def _replace_lilypond_block(text, keyword, replacement_content):
+                    """Replace a LilyPond \keyword { ... } block, handling balanced braces."""
+                    pattern = re.compile(r'\\' + keyword + r'\s*\{')
+                    result = []
+                    last_end = 0
+                    for m in pattern.finditer(text):
+                        # Find matching closing brace
+                        start = m.start()
+                        brace_pos = m.end() - 1  # position of {
+                        depth = 1
+                        i = brace_pos + 1
+                        while i < len(text) and depth > 0:
+                            if text[i] == '{':
+                                depth += 1
+                            elif text[i] == '}':
+                                depth -= 1
+                            i += 1
+                        # Append text before this match + replacement
+                        result.append(text[last_end:start])
+                        result.append(replacement_content)
+                        last_end = i
+                    result.append(text[last_end:])
+                    return ''.join(result)
+
+                new_layout = (
+                    '\\layout {\n'
+                    '  \\context {\\Score \\override BarNumber.break-visibility = #end-of-line-invisible }\n'
+                    '  \\context {\\Score barNumberVisibility = #(every-nth-bar-number-visible 1) }\n'
+                    '  \\context {\\Score \\override SpacingSpanner.base-shortest-duration = #(ly:make-moment 1/16) }\n'
+                    '  \\context {\\Score \\override SpacingSpanner.common-shortest-duration = #(ly:make-moment 1/8) }\n'
+                    '}\n'
+                )
+                ly_content = _replace_lilypond_block(ly_content, 'layout', new_layout)
+
                 # Use A4 paper with proper layout for full-page rendering
-                # Always remove any existing \paper block (from music21 or elsewhere)
-                # to ensure our A4 settings take effect
+                # Remove any existing \paper block (with balanced braces)
                 a4_paper = (
                     '\\paper {\n'
                     '  #(set-paper-size "a4")\n'
@@ -1495,12 +1541,15 @@ class SheetMusicWidget(QGraphicsView):
                     '  print-page-number = ##f\n'
                     '}\n'
                 )
-                # Remove any existing \paper { ... } block
-                ly_content = re.sub(r'\\paper\s*\{.*?\n\}', '', ly_content, flags=re.DOTALL)
-                ly_content = ly_content.replace(
-                    '\\header',
-                    a4_paper + '\\header'
-                )
+                ly_content = _replace_lilypond_block(ly_content, 'paper', a4_paper)
+                # If no \paper block was found, insert before \header (backward compat)
+                # _replace_lilypond_block is a no-op if no block exists, but we excluded
+                # the old \paper insertion — re-add it as fallback
+                if '\\paper' not in ly_content:
+                    ly_content = ly_content.replace(
+                        '\\header',
+                        a4_paper + '\\header'
+                    )
                 with open(ly_path, 'w', encoding='utf-8') as f:
                     f.write(ly_content)
             except Exception as e:
